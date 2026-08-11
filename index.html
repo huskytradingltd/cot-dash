@@ -144,6 +144,96 @@
   .swatch.diamond{background:none; position:relative;}
   .swatch.diamond::before{content:"◆"; color:var(--confluence); font-size:13px; position:absolute; top:-4px; left:-1px;}
 
+  /* ---------- Spotlight ---------- */
+  .spotlight-section{
+    max-width:980px;
+    margin:0 auto;
+    padding:22px 28px 6px;
+    border-bottom:1px solid var(--hairline-soft);
+  }
+  .spotlight-header{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    margin-bottom:4px;
+  }
+  .spotlight-title{
+    font-family:'Spectral',serif;
+    font-style:italic;
+    font-size:17px;
+    color:var(--paper);
+  }
+  .spotlight-sub{
+    font-size:11.5px;
+    color:var(--muted-dim);
+    margin-bottom:14px;
+  }
+  .spotlight-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));
+    gap:10px;
+    padding-bottom:18px;
+  }
+  .spotlight-card{
+    position:relative;
+    background:var(--panel);
+    border:1px solid var(--hairline-soft);
+    border-left:3px solid var(--muted-dim);
+    border-radius:4px;
+    padding:10px 12px;
+    cursor:pointer;
+    transition:border-color .15s ease, transform .15s ease, background .15s ease;
+  }
+  .spotlight-card:hover{background:var(--panel-raised); transform:translateY(-1px);}
+  .spotlight-card.long{border-left-color:var(--long);}
+  .spotlight-card.short{border-left-color:var(--short);}
+  .spotlight-card .sc-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin-bottom:5px;
+    padding-right:14px;
+  }
+  .spotlight-card .sc-ticker{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    font-weight:500;
+    color:var(--paper);
+  }
+  .spotlight-card .sc-sector{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9px;
+    color:var(--muted-dim);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    white-space:nowrap;
+  }
+  .spotlight-card .sc-pctile{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:15px;
+    font-weight:600;
+  }
+  .spotlight-card.long .sc-pctile{color:var(--long);}
+  .spotlight-card.short .sc-pctile{color:var(--short);}
+  .spotlight-card .sc-label{
+    font-size:9.5px;
+    color:var(--muted-dim);
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+  }
+  .spotlight-card .sc-confluence{
+    position:absolute;
+    top:8px;
+    right:10px;
+    color:var(--confluence);
+    font-size:12px;
+  }
+  .spotlight-empty{
+    font-size:12.5px;
+    color:var(--muted-dim);
+    padding:6px 0 18px;
+  }
+
   /* ---------- Sector sections ---------- */
   main{padding-top:6px;}
   .sector-section{padding:26px 28px 6px;}
@@ -379,6 +469,14 @@
   <div class="legend-item">Click any market to see its 3-year history</div>
 </div>
 
+<div class="spotlight-section" id="spotlightSection">
+  <div class="spotlight-header">
+    <span class="spotlight-title">Spotlight</span>
+  </div>
+  <div class="spotlight-sub">Markets currently at a 3-year positioning extreme, most crowded first — click a card to jump to it below.</div>
+  <div class="spotlight-grid" id="spotlightGrid"></div>
+</div>
+
 <main id="main"></main>
 
 <div class="wrap">
@@ -507,6 +605,7 @@ function render(){
       const rowEl = document.createElement("div");
       rowEl.className = "row";
       rowEl.dataset.ticker = row.ticker;
+      rowEl.id = `row-${row.ticker}`;
 
       const barLeft = hasPctile ? Math.min(50, pctile) : 50;
       const barWidth = hasPctile ? Math.abs(pctile - 50) : 0;
@@ -545,6 +644,50 @@ function render(){
   }
 
   document.getElementById("extremeCount").textContent = extremeTotal + " of " + currentSummary.length + " markets";
+  renderSpotlight();
+}
+
+function renderSpotlight(){
+  const grid = document.getElementById("spotlightGrid");
+  grid.innerHTML = "";
+
+  const extremes = currentSummary
+    .filter(r => r.spec_signal === "Extreme Long" || r.spec_signal === "Extreme Short")
+    .map(r => ({...r, distance: Math.abs((r.spec_pctile ?? 50) - 50)}))
+    .sort((a, b) => b.distance - a.distance)
+    .slice(0, 12);
+
+  if(extremes.length === 0){
+    grid.innerHTML = `<div class="spotlight-empty">No markets are currently at a 3-year positioning extreme.</div>`;
+    return;
+  }
+
+  for(const row of extremes){
+    const cls = signalClass(row.spec_signal);
+    const isConfluence = row.confluence_signal && row.confluence_signal !== "—";
+    const card = document.createElement("div");
+    card.className = `spotlight-card ${cls}`;
+    card.innerHTML = `
+      ${isConfluence ? `<span class="sc-confluence">◆</span>` : ""}
+      <div class="sc-top">
+        <span class="sc-ticker">${row.ticker}</span>
+        <span class="sc-sector">${row.sector}</span>
+      </div>
+      <div class="sc-pctile">${row.spec_pctile.toFixed(1)}</div>
+      <div class="sc-label">${row.spec_signal === "Extreme Long" ? "Extreme Long" : "Extreme Short"}</div>
+    `;
+    card.addEventListener("click", () => jumpToRow(row.ticker));
+    grid.appendChild(card);
+  }
+}
+
+function jumpToRow(ticker){
+  const rowEl = document.getElementById(`row-${ticker}`);
+  if(!rowEl) return;
+  rowEl.scrollIntoView({behavior: "smooth", block: "center"});
+  if(!rowEl.classList.contains("expanded")){
+    setTimeout(() => rowEl.click(), 350);
+  }
 }
 
 function toggleDetail(ticker, rowEl, detailEl){
